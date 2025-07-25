@@ -1,0 +1,12 @@
+adminUser: admin
+adminPassword: admin
+
+persistence:
+  enabled: true
+  existingClaim: grafana-pvc
+
+service:
+  type: NodePort
+  nodePort: 30095
+
+# No se añaden datasources ni dashboards aún

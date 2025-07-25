@@ -1,0 +1,24 @@
+yamlApplicationConfig:
+  server:
+    servlet:
+      context-path: "/"
+  kafka:
+    clusters:
+      - name: local-kafka
+        bootstrapServers: "192.168.49.2:30092,192.168.49.2:30093,192.168.49.2:30094"
+        properties:
+          security.protocol: PLAINTEXT
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30096  # Choose an available port on Minikube IP
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+

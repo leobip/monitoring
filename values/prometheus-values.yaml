@@ -1,0 +1,7 @@
+server:
+  persistentVolume:
+    enabled: true
+    existingClaim: prometheus-pvc
+  service:
+    type: NodePort
+    nodePort: 30090

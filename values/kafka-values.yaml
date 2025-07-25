@@ -1,0 +1,49 @@
+replicaCount: 3
+
+persistence:
+  enabled: true
+  existingClaim: kafka-pv
+
+externalAccess:
+  enabled: true
+  controller:
+    service:
+      type: NodePort
+      nodePorts:
+        - 30092
+        - 30093
+        - 30094
+      externalIPs:
+        - 192.168.49.2  # Minikube IP - you can get this with 'minikube ip'
+        - 192.168.49.2
+        - 192.168.49.2
+
+  autoDiscovery:
+    enabled: false
+
+kraft:
+  enabled: true  # Using KRaft mode (recommended)
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+    name: EXTERNAL
+  
+auth:
+  clientProtocol: plaintext
+  interBrokerProtocol: plaintext
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 200m
+  limits:
+    memory: 1Gi
+    cpu: 500m
+
+metrics:
+  kafka:
+    enabled: true  # Enable Kafka metrics
+  jmx:
+    enabled: true  # Enable JMX metrics
+
