@@ -1,6 +1,6 @@
 # 📡 Local Monitoring Stack for Kubernetes (Prometheus + Grafana + Kafka)
 
-This guide describes how to install a local monitoring environment using **Prometheus**, **Grafana**, and **Kafka**, with persistent volumes and Helm charts.
+This guide describes how to install a local monitoring environment using **Prometheus**, **Grafana**, and **Kafka** (with kafka-ui), with persistent volumes and Helm charts.
 
 This setup is useful for developing and testing kuebernetes operators that expose metrics or produce telemetry events.
 
@@ -17,6 +17,7 @@ monitoring/
 │ └── grafana-pv.yaml
 └── values/ # Helm values for each component
   ├── kafka-values.yaml
+  ├── kafka-ui-values.yaml
   ├── prometheus-values.yaml
   └── grafana-values.yaml
 ```
@@ -58,6 +59,7 @@ chmod +x deploy-all.sh
 - This script will:
   - Create a monitoring namespace.
   - Apply persistent volumes from pv/.
+
 ## 📋 Access to Monitoring Tools
 
 | Tool         | External Access (NodePort)                                                                                                                                                                                                                                   | Internal Access (Cluster DNS)                                                                                                                            | Important Notes                                                                                                                                                                                                                                                 |
@@ -119,11 +121,12 @@ kafka-ui   NodePort   10.96.220.89   <none>        8080:30096/TCP   19m
 ```
 
 ```bash
+# ⚠️ IP may change on restart (check again)
 minikube ip
 192.168.49.2
 ```
 
-- ***You might expect curl http://192.168.49.2:30095 to work, but it doesn't respond.***
+- ***You might expect `curl <http://192.168.49.2:30095>` to work, but it doesn't respond.***
 
 ### 🧪 Option 1: minikube service (Temporary)
 
@@ -208,8 +211,9 @@ kubectl port-forward -n monitoring svc/prometheus 9090:9090
 
 kubectl port-forward svc/kafka-ui 8080:8080 -n monitoring
 
-
 ```
+
+- ***NOTE: Yopu have to stop the temporary proxy with ctrl-c before stop minikube, and execute again on restart***
 
 - Then visit (In this example):
 
@@ -272,3 +276,178 @@ curl http://192.168.49.2:30095
 | **Prometheus** | Same as above      | Same       | Same        | Accessible at port 9090               |
 | **Kafka**      | `port-fwd 9093`    | ❌          | ✅ (TLS)     | For testing with TLS listener         |
 |                | `minikube tunnel`  | ✅          | ✅           | Needed for TLS access from host tools |
+
+## 🔄 Stopping and Restarting Minikube Safely
+
+***♻️ Minikube Lifecycle (Shutdown / Restart)***
+
+To safely shut down and restart your monitoring stack without losing data or encountering errors:
+
+### ✅ Stop Minikube
+
+- Use minikube stop instead of deleting the cluster:
+  - This safely shuts down the VM/container.
+  - PVCs and all service configurations remain intact.
+
+```bash
+minikube stop
+```
+
+### ✅ Start Again Later
+
+- This restores the full state, including your deployed services, PVCs, and Helm releases.
+  - All NodePorts and persistent data remain available.
+
+```bash
+minikube start
+```
+
+***⚠️ Do Not Use***
+
+- ❌ This deletes all volumes, pods, secrets, configs — use only if you want a clean reset.
+
+```bash
+minikube delete
+```
+
+### 🧪 Check Status
+
+```bash
+kubectl get pods -n monitoring
+```
+
+- If pods don't come up correctly (e.g., CrashLoopBackOff), you may need to:
+  - Reapply deploy-all.sh
+  - Re-check Minikube disk availability with:
+
+    ```bash
+    minikube ssh
+    df -h
+    ```
+
+### 🔒 Persistent Volumes & Restarting Notes
+
+| Component  | Persistent? | How It's Stored           | Notes                                                             |
+| ---------- | ----------- | ------------------------- | ----------------------------------------------------------------- |
+| Prometheus | ✅           | PVC → HostPath on VM      | Config & scraped metrics preserved across reboots                 |
+| Grafana    | ✅           | PVC (grafana-pvc)         | Dashboards, settings are saved                                    |
+| Kafka      | ✅           | PVC per broker/controller | Topic data survives restart. Must wait for all brokers to rejoin. |
+| Kafka-UI   | ❌           | Ephemeral                 | Will restart fresh; doesn't affect Kafka state                    |
+
+### 🔁 Optional: Restart deploy-all.sh (if needed)
+
+- You can safely re-run the script to reapply Helm charts and PVCs:
+  - 💡 Helm is idempotent — it will upgrade existing releases without data loss if PVCs exist.
+
+```bash
+./deploy-all.sh
+```
+
+### 📁 Tip: Back Up Persistent Data (Optional)
+
+- To snapshot your PVCs before restarting or for backup purposes:
+
+```bash
+kubectl get pvc -n monitoring
+```
+
+- For example:
+
+```bash
+kubectl cp monitoring/prometheus-server-0:/opt/bitnami/prometheus/data ./backup-prometheus-data
+```
+
+## 🧠 Final Tip: Automate Health Checks (Optional)
+
+To quickly check if your monitoring stack is up and running, you can either:
+
+### ***✅ Option A: Use the health check script (recommended)***
+
+- Run the provided script to verify key components like Prometheus, Grafana, Kafka and Kafka-UI:
+
+```bash
+./check-health.sh
+```
+
+- Response
+
+```bash
+❯ ./check-health.sh
+
+⏳ Checking health of monitoring components in namespace: monitoring
+🔍 prometheus-server...
+deployment "prometheus-server" successfully rolled out
+✅ prometheus-server is healthy
+🔍 grafana...
+deployment "grafana" successfully rolled out
+✅ grafana is healthy
+🔍 kafka-ui...
+deployment "kafka-ui" successfully rolled out
+✅ kafka-ui is healthy
+🔍 kafka-controller...
+statefulset rolling update complete 3 pods at revision kafka-controller-98bc6557b...
+✅ kafka-controller is healthy
+✅ Health check completed.
+```
+
+- If components are not found or in a bad state, the script will print warnings accordingly.
+- You can edit the script to match the names of your deployments or statefulsets, depending on your YAMLs.
+
+### ***🔍 Option B: Check manually with kubectl***
+
+If you prefer manual inspection or want to verify specific resources:
+
+- List all pods in the monitoring namespace:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+- You should see something like:
+
+```bash
+NAME                                                READY   STATUS    RESTARTS        AGE
+grafana-57554dd88-rc8z4                             1/1     Running   0               3h11m
+kafka-controller-0                                  1/1     Running   0               175m
+kafka-controller-1                                  1/1     Running   0               175m
+kafka-controller-2                                  1/1     Running   0               175m
+kafka-ui-5448964747-ds2bd                           1/1     Running   0               171m
+prometheus-alertmanager-0                           1/1     Running   1 (4h59m ago)   24h
+prometheus-kube-state-metrics-7f796b7d44-89mjd      1/1     Running   1 (4h59m ago)   24h
+prometheus-prometheus-node-exporter-cltc4           1/1     Running   1 (4h59m ago)   24h
+prometheus-prometheus-pushgateway-d4f8cb767-nwtn9   1/1     Running   1 (4h59m ago)   24h
+prometheus-server-79798b4ff6-7g55g                  2/2     Running   2 (4h59m ago)   24h
+...
+```
+
+- Check services and their ports:
+
+```bash
+kubectl get svc -n monitoring
+```
+
+- Look for NodePort services exposing the UIs:
+
+```bash
+NAME                                  TYPE        CLUSTER-IP       EXTERNAL-IP    PORT(S)                      AGE
+grafana                               NodePort    10.104.174.27    <none>         80:30095/TCP                 3h11m
+kafka                                 ClusterIP   10.106.201.77    <none>         9092/TCP,9095/TCP            175m
+kafka-controller-0-external           NodePort    10.105.143.201   192.168.49.2   9094:30092/TCP               175m
+kafka-controller-1-external           NodePort    10.101.82.105    192.168.49.2   9094:30093/TCP               175m
+kafka-controller-2-external           NodePort    10.97.107.152    192.168.49.2   9094:30094/TCP               175m
+kafka-controller-headless             ClusterIP   None             <none>         9094/TCP,9092/TCP,9093/TCP   175m
+kafka-ui                              NodePort    10.100.56.227    <none>         8080:30096/TCP               171m
+prometheus-alertmanager               ClusterIP   10.103.180.130   <none>         9093/TCP                     24h
+prometheus-alertmanager-headless      ClusterIP   None             <none>         9093/TCP                     24h
+prometheus-kube-state-metrics         ClusterIP   10.102.171.116   <none>         8080/TCP                     24h
+prometheus-prometheus-node-exporter   ClusterIP   10.97.14.115     <none>         9100/TCP                     24h
+prometheus-prometheus-pushgateway     ClusterIP   10.101.189.12    <none>         9091/TCP                     24h
+prometheus-server                     NodePort    10.104.67.195    <none>         80:30090/TCP                 24h
+```
+
+- Then, access the dashboards using `http://<minikube-ip>:<nodeport>`. For example:
+  - Grafana: <http://localhost:30095>
+  - Prometheus: <http://localhost:30090>
+  - Kafka UI: <http://localhost:30096>
+
+- **Use minikube ip to get your cluster IP if needed.**
