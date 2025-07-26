@@ -8,6 +8,9 @@ yamlApplicationConfig:
         bootstrapServers: "192.168.49.2:30092,192.168.49.2:30093,192.168.49.2:30094"
         properties:
           security.protocol: PLAINTEXT
+        metrics:
+          port: 9092
+        readOnly: false
 
 service:
   type: NodePort

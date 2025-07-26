@@ -132,7 +132,7 @@ minikube ip
 minikube service grafana -n monitoring
 
 # Prometheus
-minikube prometheus-server -n monitoring
+minikube service prometheus-server -n monitoring
 
 # Kafka-ui
 minikube service kafka-ui -n monitoring
@@ -142,14 +142,36 @@ minikube service kafka-ui -n monitoring
 - This opens a temporary proxy and shows a localhost URL like:
 
 ```psql
+# Grafana
+|------------|---------|-------------|---------------------------|
+| NAMESPACE  |  NAME   | TARGET PORT |            URL            |
+|------------|---------|-------------|---------------------------|
+| monitoring | grafana | service/80  | http://192.168.49.2:30095 |
+|------------|---------|-------------|---------------------------|
+🏃  Starting tunnel for service grafana.
+|------------|---------|-------------|------------------------|
 | NAMESPACE  |  NAME   | TARGET PORT |          URL           |
 |------------|---------|-------------|------------------------|
-| monitoring | grafana |             | http://127.0.0.1:56124 |
+| monitoring | grafana |             | http://127.0.0.1:56851 |
+|------------|---------|-------------|------------------------|
+🎉  Opening service monitoring/grafana in default browser...
+❗  Because you are using a Docker driver on darwin, the terminal needs to be open to run it.
 
 
-| NAMESPACE  |   NAME    | TARGET PORT |          URL           |
-|------------|-----------|-------------|------------------------|
-| monitoring | prometheus|             | http://127.0.0.1:50124 |
+# Prometheus
+|------------|-------------------|-------------|---------------------------|
+| NAMESPACE  |       NAME        | TARGET PORT |            URL            |
+|------------|-------------------|-------------|---------------------------|
+| monitoring | prometheus-server | http/80     | http://192.168.49.2:30090 |
+|------------|-------------------|-------------|---------------------------|
+🏃  Starting tunnel for service prometheus-server.
+|------------|-------------------|-------------|------------------------|
+| NAMESPACE  |       NAME        | TARGET PORT |          URL           |
+|------------|-------------------|-------------|------------------------|
+| monitoring | prometheus-server |             | http://127.0.0.1:56409 |
+|------------|-------------------|-------------|------------------------|
+🎉  Opening service monitoring/prometheus-server in default browser...
+❗  Because you are using a Docker driver on darwin, the terminal needs to be open to run it.
 
 
 # kafka
@@ -189,7 +211,7 @@ kubectl port-forward svc/kafka-ui 8080:8080 -n monitoring
 
 ```
 
-- Then visit :
+- Then visit (In this example):
 
 ```bash
 # grafana
@@ -202,6 +224,11 @@ http://localhost:9090
 http://localhost:9093
 
 ```
+
+- **Login**
+  - *Grafana:*
+    - user: admin
+    - password: admin***
 
 - ✅ Works reliably
   - ❗ Still requires the terminal to stay open
