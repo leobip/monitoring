@@ -495,3 +495,22 @@ prometheus-server                     NodePort    10.104.67.195    <none>       
   - Kafka UI: <http://localhost:30096>
 
 - **Use minikube ip to get your cluster IP if needed.**
+
+## Create the Topics (events, metrics)
+
+- Execute these commands to create the topics: metrics, events (You can do it also by kafka-ui)
+
+```bash
+❯ kubectl exec -n monitoring kafka-controller-0 -- /opt/bitnami/kafka/bin/kafka-topics.sh --create --topic metrics --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+kubectl exec -n monitoring kafka-controller-0 -- /opt/bitnami/kafka/bin/kafka-topics.sh --create --topic events --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+
+# example response:
+
+```bash
+Defaulted container "kafka" out of: kafka, prepare-config (init)
+Created topic metrics.
+Defaulted container "kafka" out of: kafka, prepare-config (init)
+Created topic events.
+```
+
+- Verify in the kafka-ui / Topics
