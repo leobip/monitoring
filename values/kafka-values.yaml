@@ -30,8 +30,18 @@ externalAccess:
 listeners:
   client:
     protocol: PLAINTEXT
+    name: CLIENT
   controller:
     protocol: PLAINTEXT
+    name: CONTROLLER
+  external:
+    protocol: PLAINTEXT
+    name: EXTERNAL
+
+# Additional broker configuration
+extraConfig: |
+  advertised.listeners=PLAINTEXT://kafka.monitoring.svc.cluster.local:9092,EXTERNAL://${EXTERNAL_ACCESS_HOST}:${EXTERNAL_ACCESS_PORT}
+  listener.security.protocol.map=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
 
 # Resources configuration
 resources:

@@ -5,11 +5,12 @@ yamlApplicationConfig:
   kafka:
     clusters:
       - name: local-kafka
-        bootstrapServers: "192.168.49.2:30092,192.168.49.2:30093,192.168.49.2:30094"
+        bootstrapServers: "kafka.monitoring.svc.cluster.local:9092"
         properties:
           security.protocol: PLAINTEXT
-        metrics:
-          port: 9092
+          client.id: kafka-ui
+          request.timeout.ms: 30000
+          retries: 3
         readOnly: false
 
 service:
