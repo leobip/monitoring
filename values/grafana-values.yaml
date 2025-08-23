@@ -3,7 +3,8 @@ adminPassword: admin
 
 persistence:
   enabled: true
-  existingClaim: grafana-pvc
+  size: 2Gi
+  storageClass: standard
 
 service:
   type: NodePort

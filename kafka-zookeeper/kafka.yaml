@@ -1,0 +1,207 @@
+# Create namepace: kafka
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+---
+# Create PersistentVolumeClaims for Kafka and Zookeeper
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: kafka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-pvc
+  namespace: kafka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Service for Zookeeper
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: kafka
+spec:
+  selector:
+    app: zookeeper
+  ports:
+    - name: client
+      port: 2181
+      targetPort: 2181
+  type: ClusterIP
+
+---
+# Zookeeper deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: bitnami/zookeeper:latest
+          ports:
+            - containerPort: 2181
+          env:
+            - name: ALLOW_ANONYMOUS_LOGIN
+              value: "yes"
+          volumeMounts:
+            - name: zookeeper-data
+              mountPath: /bitnami/zookeeper
+      volumes:
+        - name: zookeeper-data
+          persistentVolumeClaim:
+            claimName: zookeeper-pvc
+
+---
+# Kafka deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: bitnami/kafka:latest
+          ports:
+            - containerPort: 9094
+          env:
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:9093"
+            - name: KAFKA_CFG_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              # value: "PLAINTEXT://kafka.kafka.svc.cluster.local:9092"
+              value: "PLAINTEXT://kafka-serv-internal.kafka.svc.cluster.local:9092,EXTERNAL://localhost:9094"
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: ALLOW_PLAINTEXT_LISTENER
+              value: "yes"
+            - name: KAFKA_CLUSTER_ID
+              value: "kafka-cluster-id"
+          volumeMounts:
+            - name:  kafka-data
+              mountPath: /bitnami/kafka
+            # - name: tls-certs
+            #   mountPath: /bitnami/kafka/config/certs
+            #   readOnly: true
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-pvc
+        # - name: tls-certs
+        #   secret:
+        #     secretName: kafka-tls-pem
+
+# Services for different listeners
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-serv-internal
+  namespace: kafka
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9092
+      targetPort: 9092
+  selector:
+    app: kafka
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-serv-external
+  namespace: kafka
+spec:
+  type: NodePort
+  ports:
+    - port: 9094
+      targetPort: 9094
+      nodePort: 30096
+  selector:
+    app: kafka
+---
+# Kafka UI deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "local"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS
+              value: "kafka-serv-internal.kafka.svc.cluster.local:9092"
+---
+# Service for Kafka UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+  namespace: kafka
+spec:
+  selector:
+    app: kafka-ui
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
