@@ -173,6 +173,15 @@ Connect to Kafka using:
 KAFKA_BROKER=192.168.49.2:30096
 ```
 
+### To Test local - messages to kafka
+
+- Script Python to test local messages to kafka: kafka-test-local.py
+
+```bash
+❯ python3 kafka-test-local.py --broker 127.0.0.1:9094 --topic test
+✅ Message delivered to test [0]
+```
+
 ### ⚠️ Pending work
 
 - Add support for TLS + authentication (SASL) for production-like environments.
