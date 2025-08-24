@@ -56,6 +56,123 @@ Because of Kafka is a complicated Tool to install/config, I chose to install it 
 ./install.sh kafka
 ```
 
+## 🌐 External Kafka Access (Local Testing)
+
+In order to send messages to Kafka from outside Minikube (e.g., from your local machine) without having to run the client inside the cluster, I added an **external listener** configuration and a dedicated `Service` for external access.
+
+### Kafka Broker Configuration
+
+The following listeners were configured:
+
+```yaml
+- name: KAFKA_CFG_LISTENERS
+  value: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+- name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+  value: "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+- name: KAFKA_CFG_ADVERTISED_LISTENERS
+  value: "PLAINTEXT://kafka-serv-internal.kafka.svc.cluster.local:9092,EXTERNAL://127.0.0.1:9094"
+
+```
+
+- Internal traffic inside the cluster uses kafka-serv-internal:9092.
+- External traffic from the host machine uses 127.0.0.1:9094.
+
+### External Service
+
+An external service was added to expose the broker outside Minikube:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-serv-external
+  namespace: kafka
+spec:
+  type: LoadBalancer
+  # For Linux users, you can switch to NodePort if preferred:
+  # type: NodePort
+  ports:
+    - port: 9094
+      targetPort: 9094
+      # nodePort: 30096
+  selector:
+    app: kafka
+
+```
+
+- On macOS, using LoadBalancer is the simplest way to connect to Kafka externally.
+- On Linux, you may uncomment the NodePort section for direct node access instead.
+
+### Option 1.- MacOS Instructions
+
+Start the tunnel to expose LoadBalancer services:
+
+```bash
+
+minikube tunnel
+```
+
+- Verify the external IP assigned to the service:
+
+```bash
+
+kubectl get svc -n kafka
+
+# Example output:
+
+NAME                  TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+kafka-serv-external   LoadBalancer   10.106.37.143    127.0.0.1     9094:30096/TCP   21h
+kafka-serv-internal   ClusterIP      10.102.170.18    <none>        9092/TCP         21h
+kafka-ui              ClusterIP      10.105.208.183   <none>        8080/TCP         21h
+zookeeper             ClusterIP      10.106.213.78    <none>        2181/TCP         21h
+
+```
+
+- Use the external broker address in your environment:
+
+```bash
+
+KAFKA_BROKER=127.0.0.1:9094
+```
+
+### Option 2 – Linux (NodePort)
+
+On Linux, you can expose Kafka via a NodePort without using minikube tunnel.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-serv-external
+  namespace: kafka
+spec:
+  type: NodePort
+  ports:
+    - port: 9094
+      targetPort: 9094
+      nodePort: 30096
+  selector:
+    app: kafka
+```
+
+Steps:
+
+Verify the Minikube node IP:
+
+```bash
+minikube ip
+
+Example output:
+
+192.168.49.2
+```
+
+Connect to Kafka using:
+
+```bash
+KAFKA_BROKER=192.168.49.2:30096
+```
+
 ### ⚠️ Pending work
 
 - Add support for TLS + authentication (SASL) for production-like environments.
