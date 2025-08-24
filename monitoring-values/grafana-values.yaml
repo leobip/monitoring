@@ -6,8 +6,16 @@ persistence:
   size: 2Gi
   storageClass: standard
 
+# Evitamos el init container que da error con el chown
+initChownData:
+  enabled: false
+
+# Aseguramos que el contenedor principal corra como grafana (uid 472)
+securityContext:
+  runAsUser: 472
+  runAsGroup: 472
+  fsGroup: 472
+
 service:
   type: NodePort
   nodePort: 30095
-
-# No se añaden datasources ni dashboards aún

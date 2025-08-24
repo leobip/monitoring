@@ -38,9 +38,27 @@ We’ll use the official Helm charts from Bitnami and Prometheus Community, with
 
 ## 🧱 Kafka + Kafka UI
 
-This section helps you install Kafka in plaintext mode, along with a lightweight UI to browse topics and messages.
+This section helps you install Kafka with Zookeeper in plaintext mode, along with a lightweight UI to browse topics and messages.
+
+- Runs in namespace: kafka
+- Persistent Volumes enabled
+- Kafka-UI is deployed as ClusterIP (access via port-forward)
 
 Persistent volumes are enabled so your topics and messages stick around across Minikube restarts.
+
+Because of Kafka is a complicated Tool to install/config, I chose to install it with kubectl manifest.
+
+### Usage
+
+1. Deploy Kafka and Kafka UI: (If you want to install alone)
+
+```bash
+./install.sh kafka
+```
+
+### ⚠️ Pending work
+
+- Add support for TLS + authentication (SASL) for production-like environments.
 
 ---
 
@@ -49,13 +67,10 @@ Persistent volumes are enabled so your topics and messages stick around across M
 ```bash
 monitoring/
 ├── deploy-all.sh # Script to install all components
-├── pv/ # Persistent volume manifests
-│ ├── kafka-pv.yaml
-│ ├── prometheus-pv.yaml
-│ └── grafana-pv.yaml
-└── values/ # Helm values for each component
-  ├── kafka-values.yaml
-  ├── kafka-ui-values.yaml
+├── kafka-zookeeper/ # kafka manifests
+│ ├── kafka.yaml
+│ └── kafka-secretstore-externalsecret.yaml
+└── monitoring-values/ # Helm values for each component
   ├── prometheus-values.yaml
   └── grafana-values.yaml
 ```
@@ -128,18 +143,28 @@ Let’s make sure everything is working! You’ll check that Prometheus, Grafana
 ❯ kubectl get svc -n monitoring
 NAME                                  TYPE        CLUSTER-IP       EXTERNAL-IP    PORT(S)                      AGE
 grafana                               NodePort    10.102.51.68     <none>         80:30095/TCP                 29m
-kafka                                 ClusterIP   10.100.118.216   <none>         9092/TCP,9095/TCP            46m
-kafka-controller-0-external           NodePort    10.109.227.109   192.168.49.2   9094:30092/TCP               46m
-kafka-controller-1-external           NodePort    10.97.149.130    192.168.49.2   9094:30093/TCP               46m
-kafka-controller-2-external           NodePort    10.99.194.34     192.168.49.2   9094:30094/TCP               46m
-kafka-controller-headless             ClusterIP   None             <none>         9094/TCP,9092/TCP,9093/TCP   46m
-kafka-jmx-metrics                     ClusterIP   10.99.29.148     <none>         5556/TCP                     46m
 prometheus-alertmanager               ClusterIP   10.103.180.130   <none>         9093/TCP                     46m
 prometheus-alertmanager-headless      ClusterIP   None             <none>         9093/TCP                     46m
 prometheus-kube-state-metrics         ClusterIP   10.102.171.116   <none>         8080/TCP                     46m
 prometheus-prometheus-node-exporter   ClusterIP   10.97.14.115     <none>         9100/TCP                     46m
 prometheus-prometheus-pushgateway     ClusterIP   10.101.189.12    <none>         9091/TCP                     46m
 prometheus-server                     NodePort    10.104.67.195    <none>         80:30090/TCP                 46m
+```
+
+```bash
+❯ kubectl get svc -n kafka
+NAME                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+kafka-serv-external   NodePort    10.106.37.143    <none>        9094:30096/TCP   16h
+kafka-serv-internal   ClusterIP   10.102.170.18    <none>        9092/TCP         16h
+kafka-ui              ClusterIP   10.105.208.183   <none>        8080/TCP         16h
+zookeeper             ClusterIP   10.106.213.78    <none>        2181/TCP         16h
+
+❯ kubectl get pods -n kafka
+NAME                        READY   STATUS    RESTARTS      AGE
+kafka-5ccc5c57cd-nnngm      1/1     Running   4 (88m ago)   16h
+kafka-ui-78cff74b58-hs66l   1/1     Running   4 (88m ago)   16h
+zookeeper-fcb9f5df7-t29lz   1/1     Running   4 (88m ago)   16h
+
 ```
 
 ### Example
@@ -155,12 +180,6 @@ kubectl get svc -n monitoring prometheus-server
 
 NAME         TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
 prometheus   NodePort   10.98.27.101   <none>        9090:31090/TCP   45m
-
-
-kubectl get svc -n monitoring kafka-ui
-
-NAME       TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
-kafka-ui   NodePort   10.96.220.89   <none>        8080:30096/TCP   19m
 
 ```
 
@@ -182,7 +201,7 @@ minikube service grafana -n monitoring
 minikube service prometheus-server -n monitoring
 
 # Kafka-ui
-minikube service kafka-ui -n monitoring
+minikube service kafka-ui -n kafka
 
 ```
 
@@ -419,18 +438,27 @@ To quickly check if your monitoring stack is up and running, you can either:
 ❯ ./check-health.sh
 
 ⏳ Checking health of monitoring components in namespace: monitoring
-🔍 prometheus-server...
-deployment "prometheus-server" successfully rolled out
-✅ prometheus-server is healthy
-🔍 grafana...
+🔍 grafana (deployment)...
 deployment "grafana" successfully rolled out
 ✅ grafana is healthy
-🔍 kafka-ui...
+🔍 prometheus-server (deployment)...
+deployment "prometheus-server" successfully rolled out
+✅ prometheus-server is healthy
+
+⏳ Checking health of Kafka components in namespace: kafka
+🔍 kafka-ui (deployment)...
 deployment "kafka-ui" successfully rolled out
 ✅ kafka-ui is healthy
-🔍 kafka-controller...
-statefulset rolling update complete 3 pods at revision kafka-controller-98bc6557b...
-✅ kafka-controller is healthy
+🔍 kafka (deployment)...
+deployment "kafka" successfully rolled out
+✅ kafka is healthy
+🔍 zookeeper (deployment)...
+deployment "zookeeper" successfully rolled out
+✅ zookeeper is healthy
+
+ℹ️  Bootstrap interno de Kafka (si existe el Service):
+   kafka-serv-internal.kafka.svc.cluster.local:9092
+
 ✅ Health check completed.
 ```
 
@@ -452,10 +480,6 @@ kubectl get pods -n monitoring
 ```bash
 NAME                                                READY   STATUS    RESTARTS        AGE
 grafana-57554dd88-rc8z4                             1/1     Running   0               3h11m
-kafka-controller-0                                  1/1     Running   0               175m
-kafka-controller-1                                  1/1     Running   0               175m
-kafka-controller-2                                  1/1     Running   0               175m
-kafka-ui-5448964747-ds2bd                           1/1     Running   0               171m
 prometheus-alertmanager-0                           1/1     Running   1 (4h59m ago)   24h
 prometheus-kube-state-metrics-7f796b7d44-89mjd      1/1     Running   1 (4h59m ago)   24h
 prometheus-prometheus-node-exporter-cltc4           1/1     Running   1 (4h59m ago)   24h
@@ -475,12 +499,6 @@ kubectl get svc -n monitoring
 ```bash
 NAME                                  TYPE        CLUSTER-IP       EXTERNAL-IP    PORT(S)                      AGE
 grafana                               NodePort    10.104.174.27    <none>         80:30095/TCP                 3h11m
-kafka                                 ClusterIP   10.106.201.77    <none>         9092/TCP,9095/TCP            175m
-kafka-controller-0-external           NodePort    10.105.143.201   192.168.49.2   9094:30092/TCP               175m
-kafka-controller-1-external           NodePort    10.101.82.105    192.168.49.2   9094:30093/TCP               175m
-kafka-controller-2-external           NodePort    10.97.107.152    192.168.49.2   9094:30094/TCP               175m
-kafka-controller-headless             ClusterIP   None             <none>         9094/TCP,9092/TCP,9093/TCP   175m
-kafka-ui                              NodePort    10.100.56.227    <none>         8080:30096/TCP               171m
 prometheus-alertmanager               ClusterIP   10.103.180.130   <none>         9093/TCP                     24h
 prometheus-alertmanager-headless      ClusterIP   None             <none>         9093/TCP                     24h
 prometheus-kube-state-metrics         ClusterIP   10.102.171.116   <none>         8080/TCP                     24h
@@ -501,8 +519,11 @@ prometheus-server                     NodePort    10.104.67.195    <none>       
 - Execute these commands to create the topics: metrics, events (You can do it also by kafka-ui)
 
 ```bash
-❯ kubectl exec -n monitoring kafka-controller-0 -- /opt/bitnami/kafka/bin/kafka-topics.sh --create --topic metrics --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
-kubectl exec -n monitoring kafka-controller-0 -- /opt/bitnami/kafka/bin/kafka-topics.sh --create --topic events --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092
+kubectl -n kafka exec -it deploy/kafka-client -- \
+  kafka-topics.sh --create --topic metrics --bootstrap-server kafka-serv:9092
+
+kubectl -n kafka exec -it deploy/kafka-client -- \
+  kafka-topics.sh --create --topic events --bootstrap-server kafka-serv:9092
 
 # example response:
 
