@@ -40,7 +40,7 @@ detect_kind() {
   elif kubectl get statefulset "$base" -n "$ns" >/dev/null 2>&1; then
     echo "statefulset"
   else
-    echo ""  # no existe
+    echo ""  # not found
   fi
 }
 
@@ -59,13 +59,24 @@ else
 fi
 
 # ---------- INFO ÚTIL ----------
-echo -e "\nℹ️  Bootstrap interno de Kafka (si existe el Service):"
+echo -e "\nℹ️  Kafka connection info:"
+
+# Interno (dentro del cluster k8s)
 if kubectl get svc kafka-serv-internal -n "$KAFKA_NS" >/dev/null 2>&1; then
-  HOST="kafka-serv-internal.${KAFKA_NS}.svc.cluster.local"
-  PORT="$(kubectl get svc kafka-serv-internal -n "$KAFKA_NS" -o jsonpath='{.spec.ports[0].port}')"
-  echo "   ${HOST}:${PORT}"
+  INT_HOST="kafka-serv-internal.${KAFKA_NS}.svc.cluster.local"
+  INT_PORT="$(kubectl get svc kafka-serv-internal -n "$KAFKA_NS" -o jsonpath='{.spec.ports[0].port}')"
+  echo "   Internal bootstrap: ${INT_HOST}:${INT_PORT}"
 else
-  echo "   Service kafka-serv-internal no encontrado"
+  echo "   Service kafka-serv-internal not found"
+fi
+
+# Externo (NodePort expuesto por Minikube)
+if kubectl get svc kafka-serv-external -n "$KAFKA_NS" >/dev/null 2>&1; then
+  EXT_PORT="$(kubectl get svc kafka-serv-external -n "$KAFKA_NS" -o jsonpath='{.spec.ports[0].nodePort}')"
+  EXT_HOST="$(minikube ip)"
+  echo "   External bootstrap: ${EXT_HOST}:${EXT_PORT}"
+else
+  echo "   Service kafka-serv-external not found"
 fi
 
 echo -e "\n✅ Health check completed."
